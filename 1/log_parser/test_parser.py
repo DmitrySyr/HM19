@@ -29,7 +29,7 @@ class TestLogger(unittest.TestCase):
             self.assertDictEqual(config, config_etalon)
     def test_load_config_good_with_empty_parameter(self):
         
-        config = log_analyzer.load_config()
+        config = log_analyzer.load_config('./config.cfg')
         
         config_etalon = {
             "REPORT_SIZE": 1000
@@ -61,7 +61,7 @@ class TestLogger(unittest.TestCase):
     def test_dateToInt__good(self):
         name = 'nginx-access-ui.log-20170630.gz'
         
-        date_int = log_analyzer.dateToInt(name)
+        date_int = log_analyzer.date_to_int(name)
         
         self.assertEqual(date_int, 20170630)
     
@@ -69,12 +69,12 @@ class TestLogger(unittest.TestCase):
         name = 'nginx-access-ui.log-201d0630.gz'
         
         with self.assertRaises(Exception):
-            date_int = log_analyzer.dateToInt(name) 
+            date_int = log_analyzer.date_to_int(name) 
             
     def test_dateToStrWithDelimiters__good(self):
         name = 'nginx-access-ui.log-20170630.gz'
         
-        date_delimited = log_analyzer.dateToStrWithDelimiters(name)
+        date_delimited = log_analyzer.date_to_str_with_delimiters(name)
         
         self.assertEqual(date_delimited, '2017.06.30')
     
@@ -82,16 +82,16 @@ class TestLogger(unittest.TestCase):
         name = 'nginx-access-ui.log-201630.gz'
         
         with self.assertRaises(Exception):
-            date_delimited = log_analyzer.dateToStrWithDelimiters(name)               
+            date_delimited = log_analyzer.date_to_str_with_delimiters(name)               
 
     def test_dateToStrWithDelimiters__bad_wrong_date(self):
         name = 'nginx-access-ui.log-2016d30.gz'
         
         with self.assertRaises(Exception):
-            date_delimited = log_analyzer.dateToStrWithDelimiters(name)         
+            date_delimited = log_analyzer.date_to_str_with_delimiters(name)         
     
     def test_get_report_name___good(self):
-        config = log_analyzer.load_config()
+        config = log_analyzer.load_config('./config.cfg')
         config['LOG_DIR'] = files_path = os.path.abspath(os.getcwd())
         
         file_list = [os.path.join(files_path, x) for x in ['nginx-access-ui.log-20120208.gz'
@@ -106,6 +106,7 @@ class TestLogger(unittest.TestCase):
                 f.close()
                 
             choosen_log_file = log_analyzer.get_report_name(config)
+            choosen_log_file = choosen_log_file.split('/')[-1]
             
             self.assertEqual(choosen_log_file, 'nginx-access-ui.log-20121201.gz')
         finally:
@@ -113,7 +114,7 @@ class TestLogger(unittest.TestCase):
                 os.remove(f)
                 
     def test_get_report_name___good_no_file(self):
-        config = log_analyzer.load_config()
+        config = log_analyzer.load_config('./config.cfg')
         config['LOG_DIR'] = files_path = os.path.abspath(os.getcwd())
         
         choosen_log_file = log_analyzer.get_report_name(config)
@@ -121,7 +122,7 @@ class TestLogger(unittest.TestCase):
         self.assertEqual(choosen_log_file, None)
          
     def test_get_report_name___good_bad_file_doesnt_exist(self):
-        config = log_analyzer.load_config()
+        config = log_analyzer.load_config('./config.cfg')
         config['LOG_DIR'] = os.path.join(os.path.abspath(os.getcwd()))
                 
         choosen_log_file = log_analyzer.get_report_name(config)
@@ -135,7 +136,7 @@ class TestLogger(unittest.TestCase):
         
         request_time, request_url = log_analyzer.process_line(input_string)
         
-        self.assertEqual((request_time, request_url), (1.39, "GET /api/v2/banner/24852159 HTTP/1.1"))
+        self.assertEqual((request_time, request_url), (1.39, "/api/v2/banner/24852159"))
         
         
     def test_process_line__good_post(self):
@@ -145,7 +146,7 @@ class TestLogger(unittest.TestCase):
         
         request_time, request_url = log_analyzer.process_line(input_string)
         
-        self.assertEqual((request_time, request_url), (1.39, "POST /api/v2/banner/24852159 HTTP/1.1"))        
+        self.assertEqual((request_time, request_url), (1.39, "/api/v2/banner/24852159"))        
     
     
     def test_process_line__bad_bad_date(self):

@@ -30,8 +30,10 @@
 from itertools import combinations
 from functools import reduce
 
+
 def hand_rank(hand):
     """Возвращает значение определяющее ранг 'руки'"""
+    
     ranks = card_ranks(hand)
     if straight(ranks) and flush(hand):
         return (8, max(ranks))
@@ -55,12 +57,15 @@ def hand_rank(hand):
 
 def card_ranks(hand):
     """Возвращает список рангов (его числовой эквивалент),
-    отсортированный от большего к меньшему"""
+    отсортированный от большего к меньшему
+    """
     
-    cards_val = {"2":2, "3":3, "4":4, "5":5, "6":6, "7":7, "8":8, "9":9, 
-             "T":10,"J":11, "Q":12, "K":13, "A":14}
+    cards_val = {"2": 2, "3": 3, "4": 4, 
+                 "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,  
+                 "10": 10, "T": 10,"J": 11, "Q": 12,  
+                 "K": 13, "A": 14,}
     
-    return sorted([cards_val[i[0]] for i in hand], reverse=True)
+    return sorted([cards_val[i[:-1]] for i in hand], reverse=True)
 
 
 def flush(hand):
@@ -70,79 +75,71 @@ def flush(hand):
 
 
 def straight(ranks):
-    """Возвращает True, если отсортированные ранги формируют последовательность 5ти,
-    где у 5ти карт ранги идут по порядку (стрит)"""
-    return all( map(lambda x: x == 1, [s - t for s, t in zip(ranks, ranks[1:])] ) )
+    """Возвращает True, если отсортированные ранги 
+    формируют последовательность 5ти,
+    где у 5ти карт ранги идут по порядку (стрит)
+    """
+    
+    return all(map(lambda x: x == 1, 
+                   [s - t for s, t in zip(ranks, ranks[1:])]))
 
 
 def kind(n, ranks):
-    """Возвращает первый ранг, который n раз встречается в данной руке.
-    Возвращает None, если ничего не найдено"""
+    """Возвращает наибольший ранг, который n раз 
+    встречается в данной руке.
+    Возвращает None, если ничего не найдено
+    """
     
-    counter_ = { ranks.count(x) : x for x in ranks}
+    res = None
+    counter_ = {x: ranks.count(x) for x in ranks if ranks.count(x) == n}
+    if len(counter_) > 0:        
+        res = reduce(lambda x, y: x if x > y else y, counter_)
     
-    return counter_[n] if n in counter_ else None
+    return res if res else None
 
 
 def two_pair(ranks):
     """Если есть две пары, то возврщает два соответствующих ранга,
-    иначе возвращает None"""
+    иначе возвращает None
+    """
     
-    counter_ = { x : ranks.count(x) for x in ranks}
+    counter_ = {x: ranks.count(x) for x in ranks if ranks.count(x) == 2}
     
-    res = []
+    res = None
     
-    for val, i in counter_.items():
-        if list(counter_.values()).count(i) == 2:
-            res.append( val );
+    if len(counter_) == 2:
+        res = tuple(counter_.keys())
     
-    return tuple(res) if len(res) == 2 else None
+    return res
 
 
 def best_hand(hand):
     """Из "руки" в 7 карт возвращает лучшую "руку" в 5 карт """
     
-    #print('Passed new hand ', hand)
-    #print('Init with a hand ', hand[:5], ' and rank is ', hand_rank(hand[:5]))
-    best_hand = hand[:5]
-    best_rank = hand_rank(hand[:5])
-    
-    
-    for i in combinations(hand, 5):
-        cur_rank = hand_rank(i)
-        #print('Best rank is', best_rank, ' and best hand is ', best_hand)
-        #print('Cur rank is', cur_rank, ' and hand is ', i)
-        if (cur_rank[0] > best_rank[0]) | \
-        ((cur_rank[0] == best_rank[0]) & (cur_rank > best_rank)):
-            best_hand = list(i)
-            best_rank = cur_rank
-      
-    return best_hand
+    return max(combinations(hand, 5), key=hand_rank)
 
 
 def best_wild_hand(hand):
     """best_hand но с джокерами"""
+    
     cards_ranks = {"2", "3", "4", "5", "6", "7", "8", "9", "T","J", "Q", "K", "A"} 
     # Масти: трефы(clubs, C), пики(spades, S), червы(hearts, H), бубны(diamonds, D)
     black_suits = { "C", "S"}
     red_suits = {"H", "D"}
     res = x = y = None
-    #print(hand)
+    
     
     if ("?B" in hand) & ("?R" in hand):
-        #убираем джокеров, на их место будем добавлять карты перебором
+        # убираем джокеров, на их место будем добавлять карты перебором
         hand.remove("?B")
         hand.remove("?R")
-        
-        #
+               
         res = reduce(
             # размеры вычислений малы, можно в более короткой записи
             # лямбда сворачивает список всех "рук" через определение
             # "руки" большего ранга
-            lambda x,y: 
-            x if hand_rank(x)[0] > hand_rank(y)[0] else
-            x if (hand_rank(x)[0] == hand_rank(y)[0]) & (hand_rank(x) > hand_rank(y)) else
-            y,
+            lambda x, y: 
+            x if hand_rank(x) > hand_rank(y) else y,            
             # перебираем все возможные комбинации карт для двух джокеров
             [best_hand(hand + [i] + [j]) 
              for i in [rb + sb for rb in cards_ranks for sb in black_suits] if i not in hand
@@ -150,7 +147,6 @@ def best_wild_hand(hand):
         
         
     elif "?B" in hand:
-#         print('Black Jocker!')
         hand.remove("?B")
         
         res = reduce(lambda x,y: 
@@ -161,7 +157,6 @@ def best_wild_hand(hand):
             if i not in hand])
         
     elif "?R" in hand:
-#         print('Red Jocker!')
         hand.remove("?R")
         
         res = reduce(lambda x,y: 
@@ -202,4 +197,6 @@ def test_best_wild_hand():
 if __name__ == '__main__':
     test_best_hand()
     test_best_wild_hand()
+    #print(card_ranks(['10C', '2C', '3C', '3H', '7D']))
+    #print(kind(2, card_ranks(['3C', '3C', '10C', '5H', '5D'])))
     pass
