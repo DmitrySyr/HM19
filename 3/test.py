@@ -45,7 +45,7 @@ class TestSuite(unittest.TestCase):
     ])
     def test_bad_auth(self, request):
         _, code = self.get_response(request)
-        self.assertEqual(api.FORBIDDEN, code)
+        self.assertEqual(api.FORBIDDEN, code, request)
 
     @cases([
         {"account": "horns&hoofs", "login": "h&f", "method": "online_score"},
