@@ -155,7 +155,7 @@ class EmailField(Field):
         
     def __set__(self, obj, value):
         
-        if (not value is None) and (not re.search(r'\w@{1}\w', value)):
+        if (not value is None) and (not re.search(r'\w.]+@{1}\w+\.\w{1,4}\b', value)):
             raise ValidationError('Wrong email: {}. Email format should '
             'be name@serve.domen'.format(value))
             
