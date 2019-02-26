@@ -15,6 +15,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from http import HTTPStatus
 
 import scoring
+import class_blocks as cb
+from class_blocks import ValidationError
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -42,10 +44,9 @@ GENDERS = {
 }
 
 
-"""*****************************************************************************
-                       =====         Helpers        =====
-
-*****************************************************************************"""
+################################################################################
+###                                  Helpers                                 ###
+################################################################################
 
 def check_auth(_parser):
     
@@ -60,281 +61,89 @@ def check_auth(_parser):
     
     return False
 
-def find_field(request, field):
-    """Helper function for taking field from request by it's name. """
 
-    res = None
-    def helper(request):
-        nonlocal res
-        if field in request:            
-            res = request[field]
-            return True
-        return any(map(helper, (v for k, v in request.items() if isinstance(v, dict))))        
-
-    helper(request)
-    return res
-
-"""*****************************************************************************
-                   =====         All field classes =====
-
-*****************************************************************************"""
+################################################################################
+###                             Requests classes                             ###
+################################################################################
 
 
-class ValidationError(Exception):
-    """Special kind of exception to underline assigment error
-    in 'Field' like classes.
-    """
+class InterestsRequest(cb.RequestBase):
+    client_ids = cb.ClientIDsField(True, False)
+    date = cb.DateField(False, True)
     
-    def __init__(self, message):
-        super().__init__(message)
-        
-        
-class Field:
-    """Basic class for all fields of a request. """
+    @property
+    def is_valid(self):        
+        return len(self._wrong_field_names) == 0
     
-    __slots__ = ['required', 'nullable', 'field_type', 'name']
 
-    def __init__(self, field_type, required, nullable):
-        self.required = required
-        self.nullable = nullable
-        self.field_type = field_type
-        self.name = repr(self)
+class ScoreRequest(cb.RequestBase):
+    first_name = cb.CharField(False, True)
+    last_name = cb.CharField(False, True)
+    email = cb.EmailField(False, True)
+    phone = cb.PhoneField(False, True)
+    birthday = cb.BirthDayField(False, True)
+    gender = cb.GenderField(False, True)
     
-    def __set__(self, cls, value):   
+    @property
+    def is_valid(self):
         
-        if (value is None) and self.required:
-            name = str()
-            for key, val in type(cls).__dict__.items():
-                if val == self:
-                    name = key
-                    break
-                    
-            raise ValidationError('Field "{}" is required.'.format(name))
+        return any(((self.first_name and self.last_name),
+                     (self.email and self.phone),
+                     (self.birthday and self.gender >= 0))) and \
+               len(self._wrong_field_names) == 0
         
-        if (value is None) and not self.nullable:
-            name = str()
-            for key, val in type(cls).__dict__.items():
-                if val == self:
-                    name = key
-                    break
-                    
-            raise ValidationError('Value of field "{}" could not be null.'.format(name))
-        
-        if (not value is None) and (not isinstance(value, self.field_type)):
-            name = str()
-            for key, val in type(cls).__dict__.items():
-                if val == self:
-                    name = key
-                    break
-                    
-            raise ValidationError('Assigning value "{}" for the field "{}" which '
-                                  'should be "{}", not "{}"'.\
-                             format(value, name, self.field_type, type(value)))
-        
-        if not value is None:
-            setattr(cls, self.name, value)
-            
-        if (value is None) and (self.nullable):
-            setattr(cls, self.name, self.field_type())
-    
-    def __get__(self, obj, obj_type = None):
-        
-        return obj.__dict__.get(self.name, self.field_type())
 
-class CharField(Field):
-    '''Class keeps any string field from request'''
+class MethodRequest(cb.RequestBase):
+    account = cb.CharField(False, True)
+    login = cb.CharField(True, True)
+    token = cb.CharField(True, True)
+    arguments = cb.ArgumentsField(True, True)
+    method = cb.CharField(True, True)
     
-    def __init__(self, *args):
-        super().__init__(str, *args)
-        
-class EmailField(Field):
-    '''Class keeps email field from request'''
-    
-    def __init__(self, *args):
-        super().__init__(str, *args)
-        
-    def __set__(self, obj, value):
-        
-        if (not value is None) and (not re.search(r'\w.]+@{1}\w+\.\w{1,4}\b', value)):
-            raise ValidationError('Wrong email: {}. Email format should '
-            'be name@serve.domen'.format(value))
-            
-        super().__set__(obj, value)
-        
-class PhoneField(Field):
-    ''''Class keeps phone field from request'''
-    
-    def __init__(self, *args):
-        super().__init__(int, *args)            
-        
-    def __set__(self, obj, value):
-        
-        if isinstance(value, str):
-            value = int(value)
-        
-        if (not value is None) and ((value // 10000000000 != 7) or ( value // 100000000000 != 0)):
-            raise ValidationError('Wrong phone format: {}. Should be eleven numbers '
-            'beginning with 7.'.format(value))
-       
-        super().__set__(obj, value)  
-        
-class ArgumentsField(Field):
-    ''''Class keeps arguments field from request as a dict'''
-    
-    def __init__(self, *args):
-        super().__init__(dict, *args)
-         
-        
-class DateField(Field):
-    ''''Class keeps Date field from request'''
-    
-    def __init__(self, *args):
-        super().__init__(str, *args)            
-        
-    def __set__(self, obj, value):
-        
-        if (not value is None) and (value != '') and (not datetime.strptime(value, '%d.%m.%Y')):
-            raise ValidationError('Wrong date format: {} .'.format(value))
-       
-        super().__set__(obj, value)     
-        
-class BirthDayField(Field):
-    ''''Class keeps birthday date field from request'''
-    
-    def __init__(self, *args):
-        super().__init__(str, *args)            
-        
-    def __set__(self, obj, value):        
-        
-        if (not value is None) and \
-        ((datetime.now() - datetime.strptime(value, "%d.%m.%Y")).days/365 > 70):
-            raise ValidationError('Wrong birthday date: {} (more than 70 years ago).'.format(value))        
-       
-        super().__set__(obj, value)
-        
-class GenderField(Field):
-    ''''Class keeps gender field from request'''
-    
-    def __init__(self, *args):
-        super().__init__(int, *args)            
-        
-    def __set__(self, obj, value): 
-                        
-        if (value is not None) and (not isinstance(value, int)):
-            raise ValidationError('Requested field "gender" is not an int object.')        
-            
-        if (not value is None) and (not value in [UNKNOWN, MALE, FEMALE]):
-            raise ValidationError('Wrong gender format: {} and type {}.'.format(value, type(value)))
-        
-        # As we have '0' as a accepted value, we should add some extra value for None
-        # which will be converted to initial value of a type (0 for int)
-        # and implemented all checks here before converting None to -1
-        if (value is None) and self.required:
-            name = str()
-            for key, val in type(self).__dict__.items():
-                if val == self:
-                    name = key
-                    break
-    
-            raise ValidationError('Field "{}" is required.'.format(name))
-        
-        if (value is None) and not self.nullable:
-            name = str()
-            for key, val in type(cls).__dict__.items():
-                if val == self:
-                    name = key
-                    break
-    
-            raise ValidationError('Value of field "{}" could not be null.'.format(name))   
-        
-        if value is None:
-            value = -1
-       
-        super().__set__(obj, value)
-        
-class ClientIDsField(Field):
-    def __init__(self, *args):
-        super().__init__(list, *args)            
-        
-    def __set__(self, obj, value):  
-            
-        if (not value is None) and (not all(map(lambda x: isinstance(x, int), value))):           
-            raise ValidationError('ClientIDs should consist of integers.')
-        
-        if (not value is None) and (len(value) == 0):
-            raise ValidationError('ClientIDs list is empty.') 
-       
-        super().__set__(obj, value)
-   
-
-"""*****************************************************************************
-                =====         Implementing functions          =====
-
-*****************************************************************************"""
-
-def generate_fields_storage_class(request, name):
-    """Dynamically generates class-storge for parsed request. """
-    
-    if name == 'BaseParse':
-        _fields = ['account', 'login', 'token', 'arguments', 'method']
-    elif name == 'online_score':        
-        _fields = ['login', 'first_name', 'last_name', 'email', 'phone', 'birthday', 'gender']
-    elif name == 'clients_interests': 
-        _fields = ['client_ids', 'date']       
-    
-    def init(_fields, self):
-        [setattr(self, i, type(self).find_field(i)) 
-         for i in type(self).__dict__ 
-         if i in _fields]
+    @property
+    def is_valid(self):
+        return len(self._wrong_field_names) == 0
     
     @property
     def is_admin(self):
         return self.login == ADMIN_LOGIN
-        
-    attr = {}    
-    attr['__init__'] = lambda self: self.init(self)
-    attr['find_field'] = functools.partial(find_field, request)
-    attr['is_admin'] = is_admin
-    attr['init'] = functools.partial(init, _fields)
+
+################################################################################
+###                        Implementing functions                            ###
+################################################################################
+
     
-    attr['account'] = CharField(False, True)
-    attr['login'] = CharField(True, True)
-    attr['token'] = CharField(True, True)
-    attr['arguments'] = ArgumentsField(True, True)
-    attr['method'] = CharField(True, False) 
-    attr['client_ids'] = ClientIDsField(True, False)
-    attr['date'] = DateField(False, True)  
-    attr['first_name'] = CharField(False, True)
-    attr['last_name'] = CharField(False, True)
-    attr['email'] = EmailField(False, True)
-    attr['phone'] = PhoneField(False, True)
-    attr['birthday'] = BirthDayField(False, True)
-    attr['gender'] = GenderField(False, True)     
-    
-    return type(name, tuple(), attr)
-    
-def process_clients_interests(Request, store = None):
+def process_clients_interests(arguments, ctx, store = None):
     """Process user request for clients_interests method"""
     
-    req = Request()
-    res = {i : scoring.get_interests(store, i) for i in req.client_ids}
+    req = InterestsRequest(arguments) 
+    
+    if not req.is_valid:
+        raise ValidationError(req._validation_errors)
+    
+    res = {i : scoring.get_interests(store, i) for i in req.client_ids}      
+    ctx['nclients'] = len(res)
+        
     return res
 
-def process_online_score(Request, store = None):
+def process_online_score(arguments, ctx, store = None):
     """Process user request for online_score method"""
     
-    req = Request()
+    req = ScoreRequest(arguments)
     
-    if (req.phone and req.email) or (req.first_name and req.last_name) or \
-       (req.gender >= 0 and req.birthday):
-        if req.is_admin:
-            res = 42
-        else:                    
-            res = scoring.get_score(store=store, email=req.email, phone=req.phone
-                                    , first_name=req.first_name, last_name=req.last_name
-                                    , birthday=req.birthday, gender=req.gender)
-    else:
-        raise ValueError('There is no a valid paar in the arguments.')
+    if req.is_valid:   
+        res = scoring.get_score(store=store, email=req.email, phone=req.phone,
+                                    first_name=req.first_name, last_name=req.last_name,
+                                    birthday=req.birthday, gender=req.gender)
+    else:  
+        err = f"One paar of arguments should be valid in the following order \
+        (name: actual value) \
+        first_name: {req.first_name!r} and last_name: {req.last_name!r} or \
+        email: {req.email!r} and phone: {req.phone!r} or \
+        birthday: {req.birthday!r} and gender: {req.gender!r}."
+        raise ValidationError(err)
+    
+    ctx['has'] = arguments.keys()   
     
     return {'score': res}
 
@@ -343,26 +152,26 @@ def method_handler(request, ctx, store):
     if ('body' not in request) or ('arguments' not in request['body']):
         return ERRORS[INVALID_REQUEST], INVALID_REQUEST
     
-    try:                        
-        BaseParse = generate_fields_storage_class(request, 'BaseParse')        
-        base_parser = BaseParse()
+    try:
+        base_parser = MethodRequest(request)
+        
+        if not base_parser.is_valid:
+            raise ValidationError(base_parser._validation_errors)
         
         if not check_auth(base_parser):
-            return ERRORS[FORBIDDEN], FORBIDDEN
+            return ERRORS[FORBIDDEN], FORBIDDEN        
         
         if len(base_parser.arguments) == 0:
-            return ERRORS[INVALID_REQUEST], INVALID_REQUEST
-        
-        Request = generate_fields_storage_class(request, base_parser.method) 
+            return ERRORS[INVALID_REQUEST], INVALID_REQUEST        
                 
         if base_parser.method == "online_score":
-            res = process_online_score(Request, store)            
-            ctx['has'] = [i for i in base_parser.arguments.keys() 
-                          if not base_parser.arguments[i] is None]
+            if base_parser.is_admin:
+                res = {'score': 42}
+            else:
+                res = process_online_score(base_parser.arguments, ctx, store)            
              
         elif base_parser.method == "clients_interests":            
-            res = process_clients_interests(Request, store)           
-            ctx['nclients'] = len(res)
+            res = process_clients_interests(base_parser.arguments, ctx, store)            
         else:
             raise ValueError('There is no proper method name in request.')
         

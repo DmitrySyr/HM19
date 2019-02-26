@@ -77,8 +77,8 @@ class TestSuite(unittest.TestCase):
         request = {"account": "horns&hoofs", "login": "h&f", "method": "online_score", "arguments": arguments}
         self.set_valid_auth(request)
         response, code = self.get_response(request)        
-        self.assertEqual(api.INVALID_REQUEST, code)
-        self.assertTrue(len(response))
+        self.assertEqual(api.INVALID_REQUEST, code, arguments)
+        self.assertTrue(len(response), arguments)
 
     @cases([
         {"phone": "79175002040", "email": "stupnikov@otus.ru"},
@@ -97,7 +97,7 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(api.OK, code, arguments)
         score = response.get("score")
         self.assertTrue(isinstance(score, (int, float)) and score >= 0, arguments)
-        self.assertEqual(sorted(self.context["has"]), sorted(arguments.keys()))
+        self.assertEqual(sorted(self.context["has"]), sorted(arguments.keys()), arguments)
 
     def test_ok_score_admin_request(self):
         arguments = {"phone": "79175002040", "email": "stupnikov@otus.ru"}
@@ -114,7 +114,7 @@ class TestSuite(unittest.TestCase):
         {"client_ids": [], "date": "20.07.2017"},
         {"client_ids": {1: 2}, "date": "20.07.2017"},
         {"client_ids": ["1", "2"], "date": "20.07.2017"},
-        {"client_ids": [1, 2], "date": "XXX"},
+        {"client_ids": [1, 2], "date": "XXX"},        
     ])
     def test_invalid_interests_request(self, arguments):
         request = {"account": "horns&hoofs", "login": "h&f", "method": "clients_interests", "arguments": arguments}
