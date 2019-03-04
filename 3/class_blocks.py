@@ -62,8 +62,7 @@ class Field:
     def validate(self, value):        
         pass        
     
-    def __set__(self, cls, value):   
-        
+    def __set__(self, cls, value):
         if (value is None) and self.required:
             name = str()
             for key, val in type(cls).__dict__.items():
@@ -97,7 +96,6 @@ class Field:
             setattr(cls, self.name, value)   
     
     def __get__(self, obj, obj_type=None):
-        
         return obj.__dict__.get(self.name, None)
 
 
@@ -118,7 +116,6 @@ class EmailField(Field):
         super().__init__(str, required, nullable, null_values=(None, ''))
         
     def validate(self, value):
-        
         if not re.search(r'[\w.]+@{1}\w+\.\w{1,4}\b', value):
             raise ValidationError('Wrong email: {}. Email format should '
                                   'be name@server.domen'.format(value))
@@ -131,14 +128,13 @@ class PhoneField(Field):
         super().__init__((str, int), required, nullable, null_values=(None, ''))
     
     def validate(self, value):
-                
         if isinstance(value, str):            
             try:
                 value = int(value)
             except Exception as e:
                 raise ValidationError('Wrong phone format: {}.'.format(value)) 
 
-        if (value and value // 10000000000 != 7) or (value and value // 100000000000 != 0):
+        if value // 10000000000 != 7 or value // 100000000000 != 0:
             raise ValidationError('Wrong phone format: {}. Should be eleven numbers '
                                   'beginning with 7.'.format(value))    
 
@@ -159,8 +155,7 @@ class DateField(Field):
     def __init__(self, required, nullable):
         super().__init__(str, required, nullable, null_values=(None, ''))
         
-    def validate(self, value):        
-        
+    def validate(self, value):  
         if not datetime.strptime(value, '%d.%m.%Y'):
             raise ValidationError('Wrong date format: {} .'.format(value)) 
         
@@ -172,7 +167,6 @@ class BirthDayField(Field):
         super().__init__(str, required, nullable, null_values=(None, ''))        
         
     def validate(self, value):
-        
         if (datetime.now() - datetime.strptime(value, "%d.%m.%Y")).days > (70 * 365):
             raise ValidationError('Wrong birthday date: {} '
                                   '(more than 70 years ago).'.format(value))  
@@ -185,7 +179,6 @@ class GenderField(Field):
         super().__init__(int, required, nullable, null_values=(None, ))        
         
     def validate(self, value):
-            
         if value not in api.GENDERS:
             raise ValidationError('Wrong gender format: {} and type {}.'.format(value, type(value)))
         
@@ -195,7 +188,6 @@ class ClientIDsField(Field):
         super().__init__(list, required, nullable, null_values=(None, []))   
         
     def validate(self, value):
-        
         if not all(map(lambda x: isinstance(x, int), value)):           
             raise ValidationError('ClientIDs should consist of integers.') 
         
@@ -211,7 +203,6 @@ class RequestMeta(type):
     """
     
     def __new__(mcls, name, bases, attrs):
-        
         declared_fields = []
 
         for attr_key, attr_value in attrs.items():

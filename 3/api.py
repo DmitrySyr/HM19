@@ -84,7 +84,6 @@ class ScoreRequest(cb.RequestBase):
     
     @property
     def is_valid(self):
-        
         return len(self._wrong_field_names) == 0 and \
                any(((self.first_name and self.last_name),
                     (self.email and self.phone),
@@ -149,7 +148,6 @@ def process_online_score(arguments, ctx, store=None):
 
 
 def method_handler(request, ctx, store):
-    
     if ('body' not in request) or ('arguments' not in request['body']):
         return ERRORS[INVALID_REQUEST], INVALID_REQUEST
     
