@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import abc
 import json
 import logging
 import hashlib
 import uuid
 import re
-import functools
 
 from datetime import datetime
 from optparse import OptionParser
@@ -87,11 +85,11 @@ class ScoreRequest(cb.RequestBase):
     @property
     def is_valid(self):
         
-        return any(((self.first_name and self.last_name),
-                     (self.email and self.phone),
-                     (self.birthday and self.gender >= 0))) and \
-               len(self._wrong_field_names) == 0
-        
+        return len(self._wrong_field_names) == 0 and \
+               any(((self.first_name and self.last_name),
+                    (self.email and self.phone),
+                    (self.birthday and self.gender is not None)))
+               
 
 class MethodRequest(cb.RequestBase):
     account = cb.CharField(False, True)
@@ -113,7 +111,7 @@ class MethodRequest(cb.RequestBase):
 ################################################################################
 
     
-def process_clients_interests(arguments, ctx, store = None):
+def process_clients_interests(arguments, ctx, store=None):
     """Process user request for clients_interests method"""
     
     req = InterestsRequest(arguments) 
@@ -121,20 +119,21 @@ def process_clients_interests(arguments, ctx, store = None):
     if not req.is_valid:
         raise ValidationError(req._validation_errors)
     
-    res = {i : scoring.get_interests(store, i) for i in req.client_ids}      
+    res = {i: scoring.get_interests(store, i) for i in req.client_ids}      
     ctx['nclients'] = len(res)
         
     return res
 
-def process_online_score(arguments, ctx, store = None):
+
+def process_online_score(arguments, ctx, store=None):
     """Process user request for online_score method"""
     
     req = ScoreRequest(arguments)
     
     if req.is_valid:   
         res = scoring.get_score(store=store, email=req.email, phone=req.phone,
-                                    first_name=req.first_name, last_name=req.last_name,
-                                    birthday=req.birthday, gender=req.gender)
+                                first_name=req.first_name, last_name=req.last_name,
+                                birthday=req.birthday, gender=req.gender)
     else:  
         err = f"One paar of arguments should be valid in the following order \
         (name: actual value) \
@@ -143,9 +142,11 @@ def process_online_score(arguments, ctx, store = None):
         birthday: {req.birthday!r} and gender: {req.gender!r}."
         raise ValidationError(err)
     
-    ctx['has'] = arguments.keys()   
+    ctx['has'] = [i for i in arguments.keys() 
+                  if arguments[i] or (type(arguments[i]) == int and arguments[i] == 0)]
     
     return {'score': res}
+
 
 def method_handler(request, ctx, store):
     
@@ -173,7 +174,7 @@ def method_handler(request, ctx, store):
         elif base_parser.method == "clients_interests":            
             res = process_clients_interests(base_parser.arguments, ctx, store)            
         else:
-            raise ValueError('There is no proper method name in request.')
+            res = NOT_FOUND
         
     except ValidationError as e:
         logging.error(repr(e))
@@ -213,7 +214,8 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             logging.info("%s: %s %s" % (path, data_string, context["request_id"]))
             if path in self.router:
                 try:
-                    response, code = self.router[path]({"body": request, "headers": self.headers}, 
+                    response, code = self.router[path]({"body": request, 
+                                                        "headers": self.headers}, 
                                                        context, self.store)
                 except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
@@ -249,4 +251,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         pass
     server.server_close()
- 
