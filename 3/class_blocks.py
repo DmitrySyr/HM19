@@ -3,7 +3,6 @@
 '''
 
 import abc
-import logging
 import re
 
 
@@ -13,6 +12,7 @@ import api
 ################################################################################
 ###                             Special exceptions                           ###
 ################################################################################
+   
         
 class ValidationError(Exception):
     """Special kind of exception to underline assigment error
@@ -21,24 +21,6 @@ class ValidationError(Exception):
     
     def __init__(self, message):
         super().__init__(message)
-
-################################################################################
-###                                  Helpers                                 ###
-################################################################################
-
-def find_field(request, field):
-    """Helper function for taking field from request by it's name. """
-
-    res = None
-    def helper(request):
-        nonlocal res
-        if field in request:            
-            res = request[field]
-            return True
-        return any(map(helper, (v for k, v in request.items() if isinstance(v, dict))))        
-
-    helper(request)
-    return res
 
 
 ################################################################################
@@ -63,31 +45,19 @@ class Field:
         pass        
     
     def __set__(self, cls, value):
-        if (value is None) and self.required:
-            name = str()
-            for key, val in type(cls).__dict__.items():
-                if val == self:
-                    name = key
-                    break                    
-            raise ValidationError('Field "{}" is required.'.format(name))
+        if (value is None) and self.required and not self.nullable:
+            raise ValidationError('Field "{}" is required.'
+                                  .format(self.label))
         
         if not self.nullable and value in self.null_values:
-            name = str()
-            for key, val in type(cls).__dict__.items():
-                if val == self:
-                    name = key
-                    break                    
-            raise ValidationError('Value of field "{}" could not be null.'.format(name))
+            raise ValidationError('Value of field "{}" could not be null.'
+                                  .format(self.label))
         
-        if (value is not None) and (not isinstance(value, self.field_type)):
-            name = str()
-            for key, val in type(cls).__dict__.items():
-                if val == self:
-                    name = key
-                    break                    
+        if (value is not None) and (not isinstance(value, self.field_type)):                            
             raise ValidationError('Assigning value "{}" for the field "{}" which '
                                   'should be "{}", not "{}"'.
-                                  format(value, name, self.field_type, type(value)))
+                                  format(value, self.label, self.field_type, 
+                                         type(value)))
         
         if value not in self.null_values:
             self.validate(value)                
@@ -131,7 +101,7 @@ class PhoneField(Field):
         if isinstance(value, str):            
             try:
                 value = int(value)
-            except Exception as e:
+            except Exception:
                 raise ValidationError('Wrong phone format: {}.'.format(value)) 
 
         if value // 10000000000 != 7 or value // 100000000000 != 0:
@@ -156,7 +126,10 @@ class DateField(Field):
         super().__init__(str, required, nullable, null_values=(None, ''))
         
     def validate(self, value):  
-        if not datetime.strptime(value, '%d.%m.%Y'):
+        try:
+            if not datetime.strptime(value, '%d.%m.%Y'):
+                raise ValidationError('Wrong date format: {} .'.format(value)) 
+        except Exception as e:
             raise ValidationError('Wrong date format: {} .'.format(value)) 
         
         
@@ -167,9 +140,13 @@ class BirthDayField(Field):
         super().__init__(str, required, nullable, null_values=(None, ''))        
         
     def validate(self, value):
-        if (datetime.now() - datetime.strptime(value, "%d.%m.%Y")).days > (70 * 365):
+        try:
+            if (datetime.now() - datetime.strptime(value, "%d.%m.%Y")).days > (70 * 365):
+                raise ValidationError('Wrong birthday date: {} '
+                                      '(more than 70 years ago).'.format(value)) 
+        except Exception:
             raise ValidationError('Wrong birthday date: {} '
-                                  '(more than 70 years ago).'.format(value))  
+                                  '(more than 70 years ago).'.format(value))      
         
         
 class GenderField(Field):
@@ -208,6 +185,7 @@ class RequestMeta(type):
         for attr_key, attr_value in attrs.items():
             if isinstance(attr_value, Field):
                 declared_fields.append(attr_key)
+                attr_value.label = attr_key
                 
         attrs['_declared_fields'] = declared_fields
 
@@ -223,7 +201,7 @@ class RequestBase(object, metaclass=RequestMeta):
                        
         for name in self._declared_fields:
             try:
-                setattr(self, name, find_field(arguments, name))
+                setattr(self, name, arguments.get(name, None))
             except ValidationError as e:
                 _validation_errors.append(e.args[0]) 
                 _wrong_field_names.append(name)

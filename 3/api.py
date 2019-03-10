@@ -5,12 +5,10 @@ import json
 import logging
 import hashlib
 import uuid
-import re
 
 from datetime import datetime
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from http import HTTPStatus
 
 import scoring
 import class_blocks as cb
@@ -99,6 +97,11 @@ class MethodRequest(cb.RequestBase):
     
     @property
     def is_valid(self):
+        for i in ('login', 'token', 'arguments', 'method'):        
+            if getattr(self, i) is None:                
+                self._wrong_field_names.append(i)
+                self._validation_errors.append(f'Field {i} is not in the request.')
+                       
         return len(self._wrong_field_names) == 0
     
     @property
@@ -152,7 +155,7 @@ def method_handler(request, ctx, store):
         return ERRORS[INVALID_REQUEST], INVALID_REQUEST
     
     try:
-        base_parser = MethodRequest(request)
+        base_parser = MethodRequest(request['body'])        
         
         if not base_parser.is_valid:
             raise ValidationError(base_parser._validation_errors)
@@ -204,7 +207,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
         try:
             data_string = self.rfile.read(int(self.headers['Content-Length']))            
             request = json.loads(data_string)
-        except:
+        except Exception:
             code = BAD_REQUEST
 
         if request:
