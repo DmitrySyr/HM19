@@ -7,7 +7,6 @@ import re
 
 
 from datetime import datetime
-import api
 
 ################################################################################
 ###                             Special exceptions                           ###
@@ -156,7 +155,7 @@ class GenderField(Field):
         super().__init__(int, required, nullable, null_values=(None, ))        
         
     def validate(self, value):
-        if value not in api.GENDERS:
+        if value not in [0, 1, 2]:
             raise ValidationError('Wrong gender format: {} and type {}.'.format(value, type(value)))
         
         
