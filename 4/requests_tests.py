@@ -7,6 +7,7 @@ import json
 
 from api import (method_handler, ADMIN_LOGIN, SALT, OK, ADMIN_SALT)
 
+
 def cases(cases):
     def decorator(f):
         @functools.wraps(f)
@@ -16,6 +17,7 @@ def cases(cases):
                 f(*new_args)
         return wrapper
     return decorator
+
 
 def set_valid_auth(request):
     if request.get("login") == ADMIN_LOGIN:
@@ -95,6 +97,7 @@ class TestEvaluateRequests(unittest.TestCase):
         res, code = self.get_response(value)  
         self.assertTrue(res == {'score': 42})
         self.assertTrue(code == OK)
+        
         
 if __name__ == "__main__":
     unittest.main()

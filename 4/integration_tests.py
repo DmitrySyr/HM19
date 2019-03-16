@@ -1,27 +1,18 @@
-
-
-
-
 import hashlib
-
 import datetime
-
 import json
 import unittest
 import random
 import functools
 import time
-import redis
 import os
-import signal
 import subprocess
-
 import http.client
 
-from api import MainHTTPHandler, ADMIN_LOGIN
+from api import ADMIN_LOGIN
 from store import Store
-
 import api
+
 
 def cases(cases):
     def decorator(f):
@@ -33,9 +24,9 @@ def cases(cases):
         return wrapper
     return decorator
 
-class TestApi(unittest.TestCase):
+
+class TestApi(unittest.TestCase):    
     
-    redis = None
     redis_process = None
     PORT = 6379
     
@@ -47,7 +38,7 @@ class TestApi(unittest.TestCase):
         
     @classmethod
     def setUpClass(cls):
-        print (f"Creating redis instance on port {cls.PORT}")
+        print(f"Creating redis instance on port {cls.PORT}")
         cls.redis_process = subprocess.Popen(['redis-server', '--port', str(cls.PORT)])
         time.sleep(0.1)
         cls.store = Store(port=cls.PORT)  
@@ -67,7 +58,7 @@ class TestApi(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        print (f"Terminating redis instance on port {cls.PORT}")
+        print(f"Terminating redis instance on port {cls.PORT}")
         cls.redis_process.terminate()
         cls.redis_process.wait()  
         print('Redis terminated')
@@ -75,11 +66,10 @@ class TestApi(unittest.TestCase):
         cls.conn.close()  
         print('Connection closed.')
         time.sleep(0.1)
-        print (f"Terminating http server instance on port {cls.HTTP_SERVER_PORT}")
+        print(f"Terminating http server instance on port {cls.HTTP_SERVER_PORT}")
         cls.http_server_process.terminate()
         cls.http_server_process.wait()
         print('HTTP server terminated')
-         
         
     def get_response(self, request):
         self.conn.request('POST', '/method', body=json.dumps(request))
@@ -151,6 +141,7 @@ class TestApi(unittest.TestCase):
             for k, v in resp.items():
                 test_value = self.get_interests(k)
                 self.assertEqual(v, test_value)
+                
                 
 if __name__ == "__main__":
     unittest.main()
