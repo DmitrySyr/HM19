@@ -10,10 +10,10 @@ from datetime import datetime
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-import scoring
-import class_blocks as cb
-from class_blocks import ValidationError
-from store import Store
+from server.scoring import get_interests, get_score
+import server.class_blocks as cb
+from server.class_blocks import ValidationError
+from server.store import Store
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -122,7 +122,7 @@ def process_clients_interests(arguments, ctx, store=None):
     if not req.is_valid:
         raise ValidationError(req._validation_errors)
     
-    res = {i: scoring.get_interests(store, i) for i in req.client_ids}      
+    res = {i: get_interests(store, i) for i in req.client_ids}      
     ctx['nclients'] = len(res)
         
     return res
@@ -134,7 +134,7 @@ def process_online_score(arguments, ctx, store=None):
     req = ScoreRequest(arguments)
     
     if req.is_valid:   
-        res = scoring.get_score(store=store, email=req.email, phone=req.phone,
+        res = get_score(store=store, email=req.email, phone=req.phone,
                                 first_name=req.first_name, last_name=req.last_name,
                                 birthday=req.birthday, gender=req.gender)
     else:  
@@ -196,7 +196,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
         "method": method_handler
     }
-    store = Store()
+    store = Store(host='127.0.0.1', port=6379, db=0, socket_timeout=10)
 
     def get_request_id(self, headers):
         return headers.get('HTTP_X_REQUEST_ID', uuid.uuid4().hex)

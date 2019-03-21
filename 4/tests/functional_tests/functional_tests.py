@@ -9,9 +9,8 @@ import os
 import subprocess
 import http.client
 
-from api import ADMIN_LOGIN
-from store import Store
-import api
+from server.api import ADMIN_LOGIN, SALT, ADMIN_SALT, __file__
+from server.store import Store
 
 
 def cases(cases):
@@ -41,13 +40,14 @@ class TestApi(unittest.TestCase):
         print(f"Creating redis instance on port {cls.PORT}")
         cls.redis_process = subprocess.Popen(['redis-server', '--port', str(cls.PORT)])
         time.sleep(0.1)
-        cls.store = Store(port=cls.PORT)  
+        cls.store = Store(host='127.0.0.1', port=cls.PORT, db=0, socket_timeout=10)  
         interests = ("cars", "pets", "travel", "hi-tech", "sport", "music", "books", "tv", "cinema", "geek", "otus")
         for i in [0, 1, 2, 3]:
             cls.store.set(f'i:{i}', json.dumps(random.sample(interests, 2)), 60)        
         
         print(f'Running http server on port {cls.HTTP_SERVER_PORT}')
-        server_path = os.path.join(os.getcwd(), 'api.py')
+        print(os.path.realpath(__file__))
+        server_path = os.path.realpath(__file__)
         cls.http_server_process = subprocess.Popen(['python', server_path, '-p', 
                                                     str(cls.HTTP_SERVER_PORT)])
         time.sleep(0.1)
@@ -82,11 +82,11 @@ class TestApi(unittest.TestCase):
             return None, resp.code
     
     def set_valid_auth(self, request):
-        if request.get("login") == api.ADMIN_LOGIN:
-            string_to_encode = datetime.datetime.now().strftime("%Y%m%d%H") + api.ADMIN_SALT
+        if request.get("login") == ADMIN_LOGIN:
+            string_to_encode = datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT
             request["token"] = hashlib.sha512(string_to_encode.encode()).hexdigest()
         else:
-            msg = request.get("account", "") + request.get("login", "") + api.SALT
+            msg = request.get("account", "") + request.get("login", "") + SALT
             request["token"] = hashlib.sha512(msg.encode()).hexdigest()  
             
     def get_interests(self, cid):
@@ -111,7 +111,7 @@ class TestApi(unittest.TestCase):
         if resp:
             score = resp.get('score')             
             self.assertEqual(code, 200)
-            self.assertTrue(score in [0.5, 1.5, 2.0, 3.0, 3.5, 4.5, 5.0])
+            self.assertTrue(score in [0, 0.5, 1.5, 2.0, 3.0, 3.5, 4.5, 5.0])
             
     def test_good_score_request_admin(self): 
         arg = {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, 

@@ -5,7 +5,7 @@ import unittest
 import random
 import json
 
-import api
+import server.api as api
 
 
 def cases(cases):

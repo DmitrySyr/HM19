@@ -17,12 +17,12 @@ def get_score(store, phone=None, email=None, birthday=None, gender=None, first_n
     # fallback to heavy calculation in case of cache miss
     score = store.cache_get(key) or 0
     if score:
-        return score.encode()
+        return float(score)
     if phone:
         score += 1.5
     if email:
         score += 1.5
-    if birthday and gender in [0, 1, 2]:
+    if birthday and gender:
         score += 1.5
     if first_name and last_name:
         score += 0.5

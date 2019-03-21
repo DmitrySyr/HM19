@@ -5,7 +5,7 @@ import unittest
 import random
 import json
 
-from api import (method_handler, ADMIN_LOGIN, SALT, OK, ADMIN_SALT)
+from server.api import (method_handler, ADMIN_LOGIN, SALT, OK, ADMIN_SALT)
 
 
 def cases(cases):
@@ -70,7 +70,7 @@ class TestEvaluateRequests(unittest.TestCase):
     def test_interests_request_good(self, value):
         set_valid_auth(value)
         res, code = self.get_response(value)        
-        self.assertTrue(code == OK)
+        self.assertTrue(code == OK, value)
         self.assertTrue(len(res) == len(value['arguments']['client_ids']))
         self.assertTrue(self.context['nclients'] == len(res))
         self.assertCountEqual(
