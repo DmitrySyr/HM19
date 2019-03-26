@@ -23,13 +23,9 @@ class Store(object):
             return func(*args, **kwargs)
         return helper
 
-    def set(self, key, value, expire=None):
+    def set(self, key, value):
         try:
-            self.multy_calls(self.store.append)(key, value)
-            if expire:
-                self.multy_calls(self.store.expireat)(key, 
-                                                      int(datetime.now().timestamp()) 
-                                                      + expire)
+            self.multy_calls(self.store.set)(key, value)            
         except Exception as e:
             logging.error(repr(e))
 
@@ -44,7 +40,7 @@ class Store(object):
 
     def cache_set(self, key, value, expire=None):
         try:
-            self.multy_calls(self.store.append)('cash_' + key, value)
+            self.multy_calls(self.store.set)('cash_' + key, value)
             if expire:
                 self.multy_calls(self.store.expireat)('cash_' + key, 
                                                       int(datetime.now().timestamp()) 

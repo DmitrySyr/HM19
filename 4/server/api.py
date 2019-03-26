@@ -196,8 +196,9 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
         "method": method_handler
     }
-    store = Store(host='127.0.0.1', port=6379, db=0, socket_timeout=10)
-
+   
+    store = None
+   
     def get_request_id(self, headers):
         return headers.get('HTTP_X_REQUEST_ID', uuid.uuid4().hex)
 
@@ -242,10 +243,17 @@ if __name__ == "__main__":
     op = OptionParser()
     op.add_option("-p", "--port", action="store", type=int, default=8080)
     op.add_option("-l", "--log", action="store", default=None)
+    op.add_option("--redishost", action="store", type=str, default='127.0.0.1')
+    op.add_option("--redisport", action="store", type=int, default=6379)
+    op.add_option("--redisbase", action="store", type=int, default=0)
+    op.add_option("--redistmout", action="store", type=int, default=10)
     (opts, args) = op.parse_args()
     logging.basicConfig(filename=opts.log, level=logging.INFO,
                         format='[%(asctime)s] %(levelname).1s %(message)s', 
                         datefmt='%Y.%m.%d %H:%M:%S')
+    MainHTTPHandler.store = Store(host=opts.redishost, port=opts.redisport,
+                           db=opts.redisbase, socket_timeout=opts.redistmout) 
+    
     server = HTTPServer(("localhost", opts.port), MainHTTPHandler)
     logging.info("Starting server at %s" % opts.port)
     try:

@@ -10,6 +10,7 @@ def get_score(store, phone=None, email=None, birthday=None, gender=None, first_n
         phone or "",
         #birthday.strftime("%Y%m%d") if birthday is not None else "",
         birthday or "",
+        gender or 0
     ]
     string_to_encode = "".join(str(i) for i in key_parts)
     key = "uid:" + hashlib.md5(string_to_encode.encode()).hexdigest()
