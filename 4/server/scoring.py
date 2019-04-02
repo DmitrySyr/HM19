@@ -8,6 +8,7 @@ def get_score(store, phone=None, email=None, birthday=None, gender=None, first_n
         first_name or "",
         last_name or "",
         phone or "",
+        email or "",
         #birthday.strftime("%Y%m%d") if birthday is not None else "",
         birthday or "",
         gender or 0

@@ -21,74 +21,6 @@ def cases(cases):
                 f(*new_args)
         return wrapper
     return decorator
-
-
-class TestStoreWithMock(unittest.TestCase):
-    
-    @patch('redis.Redis', autospec=True)
-    @cases([
-            ('value', 1),             
-            ])
-    def test_connection_counts(self, _, key, value):        
-        store = Store()
-        store.store.set.side_effect = [Exception() for i in range(6)]        
-        store.set(key, value) 
-        self.assertEqual(store.store.set.call_count, 6)
-        
-    
-    @patch('redis.Redis', autospec=True)
-    @cases([
-            ('value', 1), 
-            ('score', 15), 
-            ('interests', "['swimming, 'jogging']"),
-            ('empty_expire', 90),
-            ])
-    def test_store_methods_set_get(self, _, key, value):
-        store = Store()
-        store.store.set.return_value = None
-        store.store.get.return_value = value
-        store.set(key, value)
-        store.store.set.assert_called_with(key, value) 
-        res = store.get(key)
-        store.store.get.assert_called_with(key)
-    
-        
-    @patch('redis.Redis', autospec=True)
-    @cases([
-            ('value', 1, 120), 
-            ('score', 15, 60), 
-            ('interests', "['swimming, 'jogging']", 90),
-            ('empty_expire', 90, 5),
-            ])
-    def test_store_methods_cache_set_cache_get_with_expir(self, _, key, value, expir):
-        store = Store()
-        store.store.set.return_value = None
-        store.store.get.return_value = value
-        store.cache_set(key, value, expir)
-        store.store.set.assert_called_with('cash_' + key, value) 
-        store.store.expireat.assert_called_with('cash_' + key, 
-                                                int(datetime.now().timestamp()) + expir) 
-        _ = store.cache_get(key)
-        store.store.get.assert_called_with('cash_' + key)
-        
-    
-    @patch('redis.Redis', autospec=True)
-    @cases([
-            ('value', 1), 
-            ('score', 15), 
-            ('interests', "['swimming, 'jogging']"),
-            ('empty_expire', 90),
-            ])
-    def test_store_methods_set_get_with_repetitions(self, _, key, value):
-        side_effect = [Exception() for i in range(5)]
-        side_effect.append(value)
-        store = Store()
-        store.store.set.return_value = None
-        store.store.get.side_effect = side_effect
-        store.set(key, value)
-        store.store.set.assert_called_with(key, value)         
-        _ = store.get(key)
-        store.store.get.assert_called_with(key)         
     
     
 class TestStoreWithoutRedis(unittest.TestCase):
@@ -201,7 +133,25 @@ class TestStoreWithRedis(unittest.TestCase):
             output, error = cli.communicate()
             self.assertEqual(output.strip(), b"OK")        
        
-        self.assertEqual(value, self.store.get(key).decode())         
+        self.assertEqual(value, self.store.get(key).decode())    
+        
+    @cases([
+        ('a', 1),
+        ('b', -1),
+        ('aa', 2.5),
+        ('bb', -5.6788),    
+        ('aaa', [1, 2, 3]),
+        ('bbb', [-100, 90, 'sss']),         
+        ])
+    def test_set_get_methods(self, key, value):
+        type_ = type(value)
+        if isinstance(value, list):           
+            value = json.dumps(value)   
+        elif isinstance(value, (int, float)):
+            value = str(value)
+            
+        self.store.set(key, value)
+        self.assertEqual(value, self.store.get(key).decode())           
     
         
 ### ----------------  cash_set|cash_get methods -----------------------
@@ -307,7 +257,53 @@ class TestStoreWithRedis(unittest.TestCase):
             
         time.sleep(1)
        
-        self.assertFalse(self.store.cache_get(key))    
+        self.assertFalse(self.store.cache_get(key))  
+        
+
+class TestStoreReconnection(unittest.TestCase):
+    
+    PORT = 6380
+    
+    @classmethod
+    def setUpClass(cls):
+        print(f"Creating redis instance on port {cls.PORT}")
+        cls.redis_process = subprocess.Popen(['redis-server', '--port', str(cls.PORT)])
+        time.sleep(0.1)        
+
+    @classmethod
+    def tearDownClass(cls):
+        print(f"Terminating redis instance on port {cls.PORT}")
+        cls.redis_process.terminate()
+        cls.redis_process.wait()         
+        print('Redis terminated')
+        time.sleep(0.1)        
+    
+    def exec_set(self, key, value):
+        store = Store(host='127.0.0.1', port=self.PORT, db=0, socket_timeout=10) 
+        store.set(key, value)
+    
+    def exec_get(self, key):
+        store = Store(host='127.0.0.1', port=self.PORT, db=0, socket_timeout=10) 
+        return store.get(key)  
+    
+    @cases([
+        ('ea', 1),
+        ('eb', -1),
+        ('eaa', 2.5),
+        ('ebb', -5.6788),
+        ('eaaa', [1, 2, 3]),
+        ('ebbb', [-100, 90, 'sss']),         
+        ])    
+    def test_reconnection(self, key, value):
+        type_ = type(value)
+        if isinstance(value, list):            
+            value = json.dumps(value)   
+        elif isinstance(value, (int, float)):
+            value = str(value)        
+            
+        self.exec_set(key, value)
+        res = self.exec_get(key)         
+        self.assertEqual(value, res.decode())           
         
         
 if __name__ == "__main__":

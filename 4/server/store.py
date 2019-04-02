@@ -28,29 +28,30 @@ class Store(object):
             self.multy_calls(self.store.set)(key, value)            
         except Exception as e:
             logging.error(repr(e))
+            raise
 
     def get(self, key):
         try:
             res = self.multy_calls(self.store.get)(key)
         except Exception as e:
             logging.error(repr(e))
-            res = None
+            raise
             
         return res
 
     def cache_set(self, key, value, expire=None):
         try:
-            self.multy_calls(self.store.set)('cash_' + key, value)
+            self.store.set('cash_' + key, value)
             if expire:
-                self.multy_calls(self.store.expireat)('cash_' + key, 
-                                                      int(datetime.now().timestamp()) 
-                                                      + expire)
+                self.store.expireat('cash_' + key, 
+                                    int(datetime.now().timestamp()) 
+                                    + expire)
         except Exception as e:
             logging.error(repr(e))
             
     def cache_get(self, key):
         try:
-            res = self.multy_calls(self.store.get)('cash_' + key)
+            res = self.store.get('cash_' + key)
         except Exception as e:
             logging.error(repr(e))
             res = None
