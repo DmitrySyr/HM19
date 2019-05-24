@@ -10,7 +10,7 @@ cfg = {
 }
 
 ResultingFile = namedtuple('ResultingFile',
-                               ['content', 'extention', 'length'])
+                           ['content', 'mime_type', 'length'])
 
 FILE_TYPES = {'html': 'text/html',
               'css': 'text/css',

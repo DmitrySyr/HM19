@@ -11,67 +11,97 @@ from urllib.parse import unquote, urlparse
 
 import settings
 
+
+###########################################################
+#                    Exception classes                    #
+###########################################################
+
+class RBadRequest(Exception):
+    pass
+
+
+class RTimeout(Exception):
+    pass
+
+
+class RWrongVersion(Exception):
+    pass
+
+
+class RWrongMethod(Exception):
+    pass
+
+
+class RNotFound(Exception):
+    pass
+
+
+class RInternalError(Exception):
+    pass
+
+
+class RForbidden(Exception):
+    pass
+
+
 ###########################################################
 #                      http handlers                      #
 ###########################################################
 
 
-def get_file_path(path):
-    res = os.path.join(os.getcwd(), os.path.normpath(path.lstrip('/')))\
-          + ("/" if path[-1] == "/" else "")
+def get_file_info(path):
+    try:
+        res = os.path.join(os.getcwd(), os.path.normpath(path.lstrip('/')))
+        if path[-1] == "/":
+            res += "/"
 
-    if not os.path.exists(res):
-        return None
-
-    if os.path.isdir(res):
-        res = os.path.join(res, 'index.html')
         if not os.path.exists(res):
-            return None
-    return res
+            raise RNotFound
+
+        if os.path.isdir(res):
+            res = os.path.join(res, 'index.html')
+            mime_type = settings.FILE_TYPES.get("html", None)
+            if not os.path.exists(res):
+                raise RNotFound
+        else:
+            ext = path.split(".")[-1]
+            mime_type = settings.FILE_TYPES.get(ext, None)
+            if not mime_type:
+                raise RForbidden
+
+        length = os.path.getsize(res)
+    except Exception as e:
+        logging.error(f"Can't find file information"
+                      f" with exception {e!r}")
+        raise
+
+    return res, length, mime_type
 
 
 def do_get(uri, _sock):
-    path = get_file_path(uri)
-
-    if not path:
-        send_response(_sock, None, HTTPStatus.NOT_FOUND)
-        return
-
-    ext = path.split(".")[-1]
-    mime_type = settings.FILE_TYPES.get(ext, None)
-
-    if not mime_type:
-        send_response(_sock, None, HTTPStatus.FORBIDDEN)
-        return
-
-    length = os.path.getsize(path)
+    path, length, mime_type = get_file_info(uri)
 
     with open(path, 'rb') as res:
         content = res.read()
 
     if length and content:
-        send_response(_sock, settings.ResultingFile(content, ext, length),
+        send_response(_sock, settings.ResultingFile(
+                                            content,
+                                            mime_type,
+                                            length),
                       HTTPStatus.OK)
     else:
         raise Exception("Can't determine file length and/or content.")
 
 
 def do_head(uri, _sock):
-    path = get_file_path(uri)
-
-    if not path:
-        send_response(_sock, None, HTTPStatus.NOT_FOUND)
-        return
-
-    ext = path.split(".")[-1]
-    if ext not in settings.FILE_TYPES:
-        send_response(_sock, None, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
-        return
-
-    length = os.path.getsize(path)
+    path, length, mime_type = get_file_info(uri)
 
     if length:
-        send_response(_sock, settings.ResultingFile(None, ext, length),
+        send_response(_sock, settings.ResultingFile(
+                                                None,
+                                                mime_type,
+                                                length),
                       HTTPStatus.OK)
     else:
         raise Exception("Can't determine file length.")
@@ -82,20 +112,23 @@ def do_head(uri, _sock):
 
 
 def send_response(_sock, resp, state):
+    ENCODING = settings.cfg['ENCODING']
     header = " ".join(("HTTP/1.0", str(state.value), state.phrase))
     date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S %Z")
 
     if state.value == 200:
         res = settings.NORM_RESPONSE.format(
-            header=header, date=date, crlf=settings.cfg['CRLF'].decode(),
-            length=resp.length, file_type=settings.FILE_TYPES[resp.extention]
+                    header=header, date=date,
+                    crlf=settings.cfg['CRLF'].decode(ENCODING),
+                    length=resp.length, file_type=resp.mime_type
                                             ).encode()
         if resp.content:
             res = b"".join((res, resp.content))
 
     else:
         res = settings.ERR_RESPONSE.format(
-            header=header, date=date, crlf=settings.cfg['CRLF'].decode()
+                            header=header, date=date,
+                            crlf=settings.cfg['CRLF'].decode(ENCODING)
                                           ).encode()
 
     try:
@@ -110,18 +143,11 @@ def send_response(_sock, resp, state):
     finally:
         logging.info(f"Response sent: "
                      f"{res.split(settings.cfg['CRLF'])[0]} response")
-
-
-def method_handler(method, uri, _sock):
-    try:
-        if method.upper() == 'GET':
-            do_get(uri, _sock)
-        elif method.upper() == 'HEAD':
-            do_head(uri, _sock)
-        else:
-            send_response(_sock, None, HTTPStatus.METHOD_NOT_ALLOWED)
-    except Exception:
-        raise
+        try:
+            _sock.shutdown(socket.SHUT_RDWR)
+            _sock.close()
+        except Exception as e:
+            logging.error(f"Error while closing a socket {e!r}")
 
 
 ###########################################################
@@ -135,90 +161,69 @@ def parse_request(req, _sock):
     CRLF = settings.cfg['CRLF']
 
     try:
-        parts = req.split(CRLF)
-        parts = [line.strip().decode(ENCODING) for line in parts
+        if not isinstance(req, str):
+            raise RBadRequest
+
+        parts = req.split(CRLF.decode(ENCODING))
+        parts = [line.strip() for line in parts
                  if line.strip()]
         if len(parts) < 1:
-            send_response(_sock, None, HTTPStatus.BAD_REQUEST)
-            return
+            raise RBadRequest
 
         method, uri, protocol = parts[0].split()
         uri = unquote(urlparse(uri).path)
-    except Exception as e:
-        logging.error(f"{e!r}")
-        send_response(_sock, None, HTTPStatus.BAD_REQUEST)
-        return
 
-    if protocol not in settings.cfg['VERS']:
-        send_response(_sock, None, HTTPStatus.HTTP_VERSION_NOT_SUPPORTED)
-        return
+        if protocol not in settings.cfg['VERS']:
+            raise RWrongVersion
 
-    try:
-        method_handler(method, uri, _sock)
     except Exception as e:
-        logging.error(f"{e!r}")
-        send_response(_sock, None, HTTPStatus.INTERNAL_SERVER_ERROR)
-        return
+        logging.error(f"Error while parsing request: {req}")
+        logging.error(f"Exception is: {e!r}")
+        raise
+
+    return method, uri
 
 
 def requests_reader(_sock):
     size = 0
     buf = bytearray(settings.cfg['BUF_SIZE'])
     CRLF = settings.cfg['CRLF']
+    res = None
+    ENCODING = settings.cfg['ENCODING']
 
     while True:
         try:
             res = _sock.recv(1024)
             if not res:
-                # socket is closed
-                break
+                logging.error("socket is closed")
+                raise RBadRequest
             nbytes = len(res)
-            buf[size:size+nbytes] = res
+            if settings.cfg['BUF_SIZE'] >= size+nbytes:
+                buf[size:size+nbytes] = res
+            else:
+                logging.error("Buf size too small for a message.")
+                raise RInternalError
 
             if CRLF+CRLF in buf:
                 second = buf.find(CRLF, buf.find(CRLF) + len(CRLF))
+                res = buf[:second + len(CRLF)].decode(ENCODING)
                 logging.info(f"Start processing request: "
-                             f"{buf[:second + len(CRLF)]}")
-                parse_request(buf[:second + len(CRLF)], _sock)
+                             f"{res!r}")
                 break
             else:
                 size += nbytes
-        except BlockingIOError as e:
-            logging.error(f"{e!r}")
         except socket.timeout:
             logging.error(f"Connection timeout for socket {_sock}")
-            send_response(_sock, None, HTTPStatus.REQUEST_TIMEOUT)
-        except OSError as e:
-            logging.error(f"{e!r}")
+            raise RTimeout
         except Exception as e:
-            logging.error(f"{e!r}")
+            logging.error(f"Error while handle request: {e!r}")
             raise
-        finally:
-            try:
-                _sock.shutdown(socket.SHUT_RDWR)
-                _sock.close()
-            except Exception as e:
-                logging.error(f"Error while closing a socket {e!r}")
-            break
+    return res
 
 
 ###########################################################
 #                     starting worker                     #
 ###########################################################
-
-
-def reading_queue(q):
-    try:
-        while True:
-            f = q.get()
-            if f == -1:
-                break
-            requests_reader(f)
-    except Exception as e:
-        logging.error(f"In reading queue in process "
-                      f"{mp.current_process().name}"
-                      f" error is {e!r}")
-        raise
 
 
 def worker(q):
@@ -229,8 +234,38 @@ def worker(q):
 
     try:
         logging.info(f'Process {mp.current_process().name} started..')
-        reading_queue(q)
-        # loop.run_forever()
+        while True:
+            _sock = q.get()
+            if _sock == -1:
+                break
+
+            try:
+                req = requests_reader(_sock)
+                method, uri = parse_request(req, _sock)
+
+                if method.upper() == 'GET':
+                    do_get(uri, _sock)
+                elif method.upper() == 'HEAD':
+                    do_head(uri, _sock)
+                else:
+                    logging.error(f"Wrong method: {method!r}"
+                                  f" in request {req!r}")
+                    raise RWrongMethod
+            except RBadRequest:
+                send_response(_sock, None, HTTPStatus.BAD_REQUEST)
+            except RNotFound:
+                send_response(_sock, None, HTTPStatus.NOT_FOUND)
+            except RForbidden:
+                send_response(_sock, None, HTTPStatus.FORBIDDEN)
+            except RInternalError:
+                send_response(_sock, None, HTTPStatus.INTERNAL_SERVER_ERROR)
+            except RTimeout:
+                send_response(_sock, None, HTTPStatus.GATEWAY_TIMEOUT)
+            except RWrongMethod:
+                send_response(_sock, None, HTTPStatus.METHOD_NOT_ALLOWED)
+            except Exception as e:
+                logging.error(f"Worker's main loop exc:{e!r}")
+                raise
     except Exception as e:
         logging.error(f"Error in {mp.current_process().name} is:\n{e!r}")
         raise
