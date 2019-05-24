@@ -91,7 +91,8 @@ def do_get(uri, _sock):
                                             length),
                       HTTPStatus.OK)
     else:
-        raise Exception("Can't determine file length and/or content.")
+        logging.error("Can't determine file length and/or content.")
+        raise RInternalError
 
 
 def do_head(uri, _sock):
@@ -104,7 +105,8 @@ def do_head(uri, _sock):
                                                 length),
                       HTTPStatus.OK)
     else:
-        raise Exception("Can't determine file length.")
+        logging.error("Can't determine file length.")
+        raise RInternalError
 
 ###########################################################
 #                      http handlers                      #
