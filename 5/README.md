@@ -28,43 +28,44 @@ Document Path:          /
 Document Length:        0 bytes
 
 Concurrency Level:      100
-Time taken for tests:   39.046 seconds
+Time taken for tests:   26.483 seconds
 Complete requests:      50000
-Failed requests:        0
+Failed requests:        1
+   (Connect: 0, Receive: 0, Length: 0, Exceptions: 1)
 Non-2xx responses:      49999
 Total transferred:      4999900 bytes
 HTML transferred:       0 bytes
-Requests per second:    1280.55 [#/sec] (mean)
-Time per request:       78.091 [ms] (mean)
-Time per request:       0.781 [ms] (mean, across all concurrent requests)
-Transfer rate:          125.05 [Kbytes/sec] received
+Requests per second:    1888.01 [#/sec] (mean)
+Time per request:       52.966 [ms] (mean)
+Time per request:       0.530 [ms] (mean, across all concurrent requests)
+Transfer rate:          184.37 [Kbytes/sec] received
 
 Connection Times (ms)
               min  mean[+/-sd] median   max
-Connect:        0    3  53.7      0    1029
-Processing:     4   75 295.4     71   26757
-Waiting:        0   75 295.4     71   26757
-Total:          5   78 322.0     71   27781
+Connect:        0    1  37.2      0    1024
+Processing:     1   51  96.3     52    6773
+Waiting:        0   51  96.3     52    6773
+Total:          3   53 122.7     52    7781
 
 Percentage of the requests served within a certain time (ms)
-  50%     71
-  66%     75
-  75%     79
-  80%     81
-  90%     89
-  95%     99
-  98%    109
-  99%    126
- 100%  27781 (longest request)
+  50%     52
+  66%     53
+  75%     54
+  80%     54
+  90%     55
+  95%     55
+  98%     56
+  99%     57
+ 100%   7781 (longest request)
 ```
 
 ## Производительность:
-В секунду обрабатывается 1280 запросов, среднее медианное значение времени
-выполнения одного запроса: 0.781 миллисекунды.
+В секунду обрабатывается 1888 запросов, среднее значение времени
+выполнения одного запроса: 0.530 миллисекунды.
 
 ## Параметры запуска:
 `-p` или `--port` указание порта
-`-w` или `--workers` указаниу количества процессов 
+`-w` или `--workers` указание количества процессов 
 `-r` или `--rootdir` указание рабочего каталога 
 
 ## Тесты
