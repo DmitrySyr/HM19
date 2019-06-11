@@ -12,9 +12,11 @@ import settings
 
 
 ###########################################################
-#                    Exception classes                    #
+#     Exception classes and global variables              #
 ###########################################################
 
+
+FIN_QUEUE = -1
 
 class ErrorCode(Exception):
     def __init__(self, err_code):
@@ -125,7 +127,7 @@ def send_response(_sock, resp, state):
 ###########################################################
 
 
-def parse_request(req, _sock):
+def parse_request(req):
     logging.debug("Start parsing request...")
     ENCODING = settings.cfg["ENCODING"]
     CRLF = settings.cfg["CRLF"]
@@ -157,7 +159,7 @@ def requests_reader(_sock):
             res = _sock.recv(1024)
             if not res:
                 logging.error("socket is closed")
-                raise ErrorCode(HTTPStatus.BAD_REQUEST)
+                return None
             buf += res
             if CRLF + CRLF in buf:
                 res = buf.decode(ENCODING)
@@ -179,12 +181,14 @@ def worker(q):
         logging.info(f"Process {mp.current_process().name} started..")
         while True:
             _sock = q.get()
-            if _sock == -1:
+            if _sock == FIN_QUEUE:
                 break
 
             try:
                 req = requests_reader(_sock)
-                method, uri = parse_request(req, _sock)
+                if not req:
+                    continue
+                method, uri = parse_request(req)
 
                 if method.upper() == "GET":
                     do_get(uri, _sock)
@@ -238,7 +242,7 @@ def main_loop(config):
     finally:
         logging.debug("Closing processes..")
         for _ in processes:
-            queue.put(-1)
+            queue.put(FIN_QUEUE)
         for pr in processes:
             pr.join()
         logging.debug("Closing socket..")
